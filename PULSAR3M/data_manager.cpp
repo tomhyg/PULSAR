@@ -1,4 +1,4 @@
-// data_manager.cpp - Avec diagnostic unifié complet et détecteur de retrait + OPTIMISÉ VITESSE
+// data_manager.cpp - Avec diagnostic unifié complet et détecteur de retrait + OPTIMISÉ VITESSE + FIX SESSIONS
 #include "data_manager.h"
 #include "sensor_manager.h"
 #include "system_manager.h"
@@ -40,7 +40,7 @@ extern String studyNotes;
 extern String awsEndpoint;
 
 // =====================
-// NOUVEAU: Cycle SD unifié avec diagnostic unifié et détecteur de retrait
+// NOUVEAU: Cycle SD unifié avec diagnostic unifié et détecteur de retrait - FIX SESSIONS
 // =====================
 
 void DataManager::multiSessionSDCycle() {
@@ -64,51 +64,39 @@ void DataManager::multiSessionSDCycle() {
     digitalWrite(LIS3DH_CS, HIGH);
     delay(50);
     
-    // 🔧 NOUVEAU: Démarrer diagnostic unifié
-    startSessionDiagnostic(sessionCounter + 1);
-    
-    // 🔍 NOUVEAU: Activer le détecteur de retrait de montre
-    WatchRemovalDetector::setEnabled(true);
-    Serial.println("🔍 Détecteur de retrait activé pour la session");
-    
-    // Si c'est pas la première session, il faut réinitialiser le buffer
+    // 🔧 CORRECTION: Pour toutes les sessions SAUF la première, s'assurer qu'on a 30k échantillons
     if (sessionCounter > 0) {
-        bufferIndex = 0;
+        Serial.println("📊 Vérification buffer session suivante...");
         
-        // 🔋 S'assurer que le PPG est alimenté pour l'acquisition
-        if (!SensorManager::isPPGPowered()) {
-            Serial.println("🔋 PPG éteint - Rallumage pour acquisition");
-            SensorManager::powerUpPPG();
-        }
-        
-        // Acquisition pendant que le buffer se remplit
-        while (bufferIndex < currentBufferSize) {
-            // 🔍 NOUVEAU: Vérifier si la montre a été retirée
-            if (WatchRemovalDetector::isWatchRemoved()) {
-                Serial.println("🔍 ❌ Montre retirée détectée pendant acquisition - Arrêt");
-                return;
-            }
+        // Si le buffer n'est pas plein, retourner et laisser l'acquisition continuer
+        if (bufferIndex < currentBufferSize) {
+            Serial.printf("⚠️ Buffer session #%d pas encore plein (%d/%d) - Continuer acquisition\n", 
+                         sessionCounter + 1, bufferIndex, currentBufferSize);
             
-            acquireData(micros());
-            
-            // Condition de sortie de sécurité
-            if (bufferIndex >= currentBufferSize) break;
-            
-            LEDManager::update();
-            delayMicroseconds(50);
+            // Reconnecter le mode partagé pour continuer l'acquisition
+            SPIManager::initializeSharedMode();
+            return;  // Sortir et laisser acquireData() continuer dans loop()
         }
     }
-    // Pour la première session, on a déjà les 30k échantillons dans le buffer !
     
-    // 🔧 NOUVEAU: Arrêter diagnostic et rapport final
-    stopSessionDiagnostic();
+    // 🔧 TRAITEMENT DONNÉES (buffer confirmé complet)
+    Serial.printf("📊 ✅ Session #%d complète: %d échantillons\n", 
+                 sessionCounter + 1, bufferIndex);
     
-    // 🔍 NOUVEAU: Désactiver temporairement le détecteur pendant l'écriture
+    // Arrêter diagnostic
+    if (isSessionDiagnosticActive()) {
+        stopSessionDiagnostic();
+    }
+    
+    // Désactiver détecteur pendant écriture
     WatchRemovalDetector::setEnabled(false);
     Serial.println("🔍 Détecteur de retrait désactivé pour écriture SD");
     
-    Serial.printf("✅ Session #%d acquise: %d échantillons\n", 
-                 sessionCounter + 1, bufferIndex);
+    // Fermer fichier et déconnecter SD pendant acquisition
+    continuousFile.close();
+    digitalWrite(SD_CS, HIGH);
+    digitalWrite(LIS3DH_CS, HIGH);
+    delay(50);
     
     // 🔋 Éteindre le PPG pendant l'écriture SD
     Serial.println("🔋 ARRÊT PPG pendant écriture SD");
@@ -136,11 +124,10 @@ void DataManager::multiSessionSDCycle() {
     
     // 4️⃣ PRÉPARATION CYCLE SUIVANT
     sessionCounter++;
-    bufferIndex = 0;  // 🔧 CORRECTION: Réinitialiser le buffer !
-    Serial.printf("✅ Session terminée. Total: %d sessions\n", sessionCounter);
+    bufferIndex = 0;  // Reset buffer pour nouvelle session
+    currentSessionStartTimestamp = 0;  // Reset timestamp
     
-    // Réinitialiser le timestamp pour la prochaine session
-    currentSessionStartTimestamp = 0;
+    Serial.printf("✅ Session terminée. Total: %d sessions\n", sessionCounter);
     
     // Déconnecter SD et repréparer capteurs
     digitalWrite(SD_CS, HIGH);
@@ -150,12 +137,23 @@ void DataManager::multiSessionSDCycle() {
     Serial.println("🔋 RALLUMAGE PPG après écriture SD");
     SensorManager::powerUpPPG();
     
-    // 🔍 NOUVEAU: Réactiver le détecteur de retrait
+    // 🔍 Réactiver le détecteur de retrait
     WatchRemovalDetector::setEnabled(true);
     Serial.println("🔍 Détecteur de retrait réactivé après écriture SD");
     
-    Serial.println("🔄 Prêt pour session suivante\n");
-    delay(2000);
+    // 🔧 CORRECTION CRITIQUE: Démarrer IMMÉDIATEMENT le diagnostic pour la session suivante
+    Serial.printf("📊 🚀 DÉMARRAGE IMMÉDIAT diagnostic session #%d\n", sessionCounter + 1);
+    startSessionDiagnostic(sessionCounter + 1);
+    
+    // Vérifier que c'est bien démarré
+    if (isSessionDiagnosticActive()) {
+        Serial.println("✅ Diagnostic session suivante démarré avec succès");
+    } else {
+        Serial.println("❌ ERREUR: Diagnostic session suivante pas démarré");
+    }
+    
+    Serial.println("🔄 Prêt pour acquisition immédiate session suivante\n");
+    delay(500);  // Délai minimal au lieu de 2000ms
 }
 
 // =====================

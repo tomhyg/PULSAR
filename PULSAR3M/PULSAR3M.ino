@@ -31,7 +31,7 @@ void setup() {
   Serial.printf("RAM interne libre: %d bytes\n", ESP.getFreeHeap());
   Serial.println("======================");
   
-  Serial.println("\n=== PULSAR-007 INIT UNIFIÉ AVEC BATTERIE SIMPLE ===");
+  Serial.println("\n=== PULSAR-004 INIT UNIFIÉ AVEC BATTERIE SIMPLE ===");
   
   // 🔧 Test LED en premier pour voir si c'est la cause
   Serial.println("🔧 Test LED avant autres initialisations...");
@@ -87,9 +87,9 @@ void setup() {
     IPAddress(255, 255, 255, 0)   // Subnet
   );
   
-  if (WiFi.softAP("Pulsar-007", "12345678", 1, 0, 4)) {
+  if (WiFi.softAP("Pulsar-004", "12345678", 1, 0, 4)) {
     Serial.println("✅ Point d'accès démarré:");
-    Serial.println("   SSID: Pulsar-007");
+    Serial.println("   SSID: Pulsar-004");
     Serial.println("   Password: 12345678");
     Serial.println("   IP: " + WiFi.softAPIP().toString());
     Serial.println("   Ouvrez http://" + WiFi.softAPIP().toString() + " dans votre navigateur");

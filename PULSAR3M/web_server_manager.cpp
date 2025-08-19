@@ -63,7 +63,7 @@ const char* configHTML =
 "</head>"
 "<body>"
 "<div class='container'>"
-"<h1>🏥 Configuration Montre Pulsar-007</h1>"
+"<h1>🏥 Configuration Montre Pulsar-004</h1>"
 
 // Section batterie en temps réel
 "<div class='section'>"
