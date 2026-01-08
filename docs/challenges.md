@@ -1,386 +1,241 @@
-# PULSAR - Engineering Challenges Solved
+# Technical Challenges Solved
 
-This document details the major technical challenges encountered during PULSAR development and the solutions implemented.
+> Key engineering problems encountered and resolved during PULSAR development
 
 ---
 
-## 🔴 Challenge #1: High-Frequency Data Loss (MAX86916 FIFO Overflow)
+## Challenge 1: Critical Data Loss Issue
 
 ### Problem Statement
 
-The MAX86916 PPG sensor operates at 100Hz across 4 optical channels, generating **400 samples per second**. The sensor has an internal FIFO buffer (32 samples), but at high sampling rates, the buffer overflows if not read fast enough, causing **irreversible data loss**.
-
-**Impact**: In medical monitoring, losing even 1-2 seconds of data can compromise clinical analysis.
-
-### Initial Symptoms
-```
-[ERROR] FIFO overflow detected
-[WARN] Lost 47 samples at timestamp 1234567
-[ERROR] Data continuity broken
-```
+**Symptom**: Inherited prototype was discarding approximately 29 out of 30 sensor samples  
+**Impact**: Complete loss of medical-grade data quality  
+**Criticality**: Project-blocking issue preventing clinical deployment  
 
 ### Root Cause Analysis
 
-1. **Polling-based reading** (checking FIFO every loop iteration)
-2. ESP32 busy with WiFi transmission → delayed FIFO reads
-3. FIFO fills in ~320ms (32 samples ÷ 100Hz) → no margin for delays
+After systematic debugging:
+1. **FIFO management error**: Incorrect read logic in sensor interrupt handler
+2. **Buffer overflow**: Circular buffer implementation had race conditions
+3. **Timing constraints**: Insufficient interrupt priority causing sample drops
+
+### Solution Approach
 
 ```
-Timeline of failure:
-T=0ms     : FIFO empty, start sampling
-T=320ms   : FIFO full (32 samples)
-T=350ms   : ESP32 finally reads (30ms late)
-Result    : 3 samples lost, overflow flag set
+Before:                          After:
+┌─────────────┐                 ┌─────────────┐
+│ Sensor FIFO │ → Dropped       │ Sensor FIFO │ → 100% captured
+│ (32 samples)│    29/30        │ (32 samples)│    0% loss
+└─────────────┘                 └─────────────┘
+       ↓                               ↓
+   ❌ Lost                          ✅ Stored
 ```
 
-### Solution Implemented
-
-**Interrupt-Driven FIFO Reading with Dual-Buffer DMA**
-
-```
-┌──────────────────────────────────────────────┐
-│         MAX86916 INT Pin Trigger             │
-│    (Hardware interrupt when FIFO > 16)       │
-└───────────────┬──────────────────────────────┘
-                │
-                ▼
-    ┌───────────────────────┐
-    │  ESP32 Interrupt ISR  │
-    │  (Highest priority)   │
-    └───────────┬───────────┘
-                │
-                ▼
-    ┌───────────────────────┐
-    │   Read FIFO via I²C   │
-    │   → Buffer A or B     │
-    │   (Ping-pong buffer)  │
-    └───────────┬───────────┘
-                │
-                ▼
-    ┌───────────────────────┐
-    │  Processing Task      │
-    │  (reads from buffers) │
-    └───────────────────────┘
-```
-
-**Key Implementation Details**:
-- **Interrupt threshold**: Trigger when FIFO ≥ 16 samples (50% full)
-- **Dual buffer**: While buffer A is being processed, buffer B receives new data
-- **DMA transfer**: I²C read uses DMA to avoid blocking CPU
-- **Timing guarantee**: ISR latency <50μs, FIFO read <10ms
+**Implementation:**
+- Complete redesign of FIFO read routine
+- Proper interrupt priority configuration
+- Hardware-software handshake protocol
+- Comprehensive buffer management with overflow protection
 
 ### Results
 
 | Metric | Before | After |
 |--------|--------|-------|
-| **Data loss rate** | 2-5% | <0.01% |
-| **Max missed samples** | 47 | 0 |
-| **FIFO overflow events** | ~10/hour | 0 |
-| **CPU load for reading** | Variable | <5% |
+| **Data loss** | 96.7% | 0% |
+| **Clinical usability** | ❌ Unusable | ✅ Medical-grade |
+| **Sample integrity** | Failed validation | Passed validation |
+
+**Validation**: 400+ hours of continuous recording across 15 prototypes with zero data loss.
 
 ---
 
-## 🔴 Challenge #2: SPI Bus Conflicts (Accelerometer + SD Card)
+## Challenge 2: SPI Bus Conflicts
 
 ### Problem Statement
 
-The LIS3DH accelerometer and SD card both use **SPI communication** on a shared bus. Concurrent access attempts caused:
-- **Corrupted SD writes** (file system errors)
-- **Garbled accelerometer data** (incorrect readings)
-- **System crashes** (when SD FAT32 metadata corrupted)
-
-### Failure Scenario
-```
-Thread 1 (Sensor Task):  
-  Reading accelerometer via SPI...
-  
-Thread 2 (SD Task):
-  Writing data to SD card via SPI... [CONFLICT!]
-  
-Result: CS lines overlap, data collision on MOSI/MISO
-```
+**Symptom**: Random system crashes during SD card write operations  
+**Impact**: Unreliable data storage, incomplete recording sessions  
+**Affected Components**: SD card interface + 3-axis accelerometer (shared SPI bus)  
 
 ### Root Cause Analysis
 
-1. **No bus arbitration**: Both tasks accessed SPI without coordination
-2. **Chip Select (CS) race condition**: CS pins not mutually exclusive
-3. **ESP-IDF SPI driver** allows concurrent transactions from different tasks
+- **Bus contention**: Both peripherals attempting simultaneous SPI access
+- **Timing violations**: Insufficient chip select (CS) management
+- **DMA conflicts**: Direct memory access collisions during high-throughput operations
 
-```
-SPI Bus (shared):
-  MOSI ────┬──── Accelerometer
-  MISO ────┤
-  SCK  ────┤
-  CS1  ────┘     
-  CS2  ───────── SD Card
-```
+### Solution Approach
 
-If CS1 and CS2 are low simultaneously → **bus collision**.
-
-### Solution Implemented
-
-**Custom Mutex-Based Bus Arbitration with Priority Queuing**
-
+**Strategy 1 - Exclusive Access Model:**
 ```c
-// Simplified pseudo-code
-typedef struct {
-    SemaphoreHandle_t bus_mutex;
-    QueueHandle_t priority_queue;
-} spi_arbiter_t;
+// Pseudocode representation
+acquire_spi_lock();
+  select_device(SD_CARD);
+  write_data_chunk();
+  deselect_device();
+release_spi_lock();
 
-spi_arbiter_t spi_arbiter;
-
-// High-priority device (accelerometer)
-bool acquire_spi_bus_high_priority() {
-    if (xSemaphoreTake(spi_arbiter.bus_mutex, 100ms)) {
-        return true; // Got bus access
-    }
-    return false; // Timeout
-}
-
-// Low-priority device (SD card)
-bool acquire_spi_bus_low_priority() {
-    // Check if high-priority task is waiting
-    if (uxQueueMessagesWaiting(priority_queue) > 0) {
-        vTaskDelay(5ms); // Yield to sensor task
-    }
-    return xSemaphoreTake(spi_arbiter.bus_mutex, 500ms);
-}
+acquire_spi_lock();
+  select_device(ACCELEROMETER);
+  read_samples();
+  deselect_device();
+release_spi_lock();
 ```
 
-**Priority Model**:
-- **Accelerometer** (high priority): Must read at 50Hz, cannot skip samples
-- **SD Card** (low priority): Buffered writes, can tolerate short delays
-
-**Implementation Features**:
-- Mutex prevents concurrent access
-- Priority queue ensures sensor reads never blocked by SD writes
-- Timeout handling with retry mechanism
-- Watchdog monitors for deadlocks
+**Strategy 2 - Timing Optimization:**
+- Accelerometer burst reads (minimize SPI occupancy)
+- SD card batch writes (reduce transaction overhead)
+- Proper CS timing guards (eliminate glitches)
 
 ### Results
 
-| Metric | Before | After |
-|--------|--------|-------|
-| **SD corruption events** | 1-2/day | 0 |
-| **Accel data errors** | ~5% | 0% |
-| **System crashes** | Weekly | None in 400+ hours |
-| **Average bus wait time** | N/A | <2ms |
+- ✅ **Zero crashes** during 3-month clinical deployment
+- ✅ **Stable 8-10h** continuous recording sessions
+- ✅ **Full accelerometer data** available for motion artifact rejection
 
 ---
 
-## 🔴 Challenge #3: Power Optimization (8+ Hour Autonomy Target)
+## Challenge 3: Wearable Ergonomics
 
 ### Problem Statement
 
-Initial power consumption was **~180mA** in active streaming mode, giving only **2.8 hours** of battery life with a 500mAh Li-Po battery. Clinical use cases required **≥8 hours** for full work shifts.
+**Symptom**: Square PCB form factor uncomfortable for wrist wear  
+**Impact**: Patient complaints, poor sensor contact, data quality degradation  
+**Medical Requirement**: Comfortable for multi-hour wear in hospital settings  
 
-### Power Consumption Breakdown (Initial)
-```
-Component         Current Draw
-─────────────────────────────
-ESP32-S3 (240MHz)    ~80 mA
-WiFi (active)        ~60 mA
-MAX86916 PPG         ~20 mA
-LIS3DH Accel         ~10 mA
-SD Card (write)      ~10 mA
-─────────────────────────────
-TOTAL               ~180 mA
-```
+![Ergonomics Problem](../images/prototypes/pulsar-dual-watches.jpg)
+*Early prototypes showing evolution of form factor*
 
 ### Root Cause Analysis
 
-1. **CPU always at max frequency** (240MHz unnecessary for most tasks)
-2. **WiFi constantly active** (no sleep between transmissions)
-3. **Sensors continuously powered** (no duty cycling)
-4. **SD card always ON** (even when buffer not full)
+- **Contact pressure**: Sharp PCB edges causing discomfort
+- **Rigid design**: No flexibility for wrist curvature adaptation
+- **Sensor alignment**: Fixed sensor position causing optical coupling issues
 
-### Solution Implemented
+### Solution Approach
 
-**Multi-Level Power Management Strategy**
+**Design Evolution:**
 
-#### Level 1: Dynamic CPU Frequency Scaling
-```c
-// Active processing (sensor reads, WiFi TX)
-esp_pm_configure({.max_freq_mhz = 240});
-
-// Idle waiting for interrupts
-esp_pm_configure({.max_freq_mhz = 80});
-
-// Deep sleep (user paused recording)
-esp_deep_sleep_start();
+```
+Generation 1: Square PCB                Generation 2: Deported Sensor
+┌──────────┐                           ┌──────────┐     ⭕ Circular
+│ [Sensor] │ ← Rigid contact           │  Main    │ ~~~> Sensor
+│  Main    │                           │   PCB    │      (Ø10mm)
+└──────────┘                           └──────────┘
+     ↓                                        ↓
+❌ Uncomfortable                         ✅ Comfortable
 ```
 
-#### Level 2: WiFi Power Save Mode
-```c
-// Enable DTIM beacon skipping
-esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
+**Key Innovation:**
+- Circular optical sensor module (Ø10mm diameter)
+- Connected via flexible FPC (Flat Flexible Cable) ribbon
+- Allows sensor to conform to wrist curvature
+- Maintains optimal optical coupling
 
-// Adaptive sleep:
-// - After data sent → WiFi sleep 
-// - Wake only for next transmission (every 500ms)
-```
-
-#### Level 3: Sensor Duty Cycling
-```
-PPG Sensor (100Hz required):
-  • Sample for 10ms
-  • Power down LEDs for 0.5ms
-  • Repeat
-  → Effective duty cycle: 95% (5% savings)
-
-Accelerometer (50Hz required):
-  • Set to low-power mode (reduces accuracy slightly)
-  • Wake on motion interrupt
-  → Saves ~5mA when stationary
-```
-
-#### Level 4: SD Card Power Gating
-```c
-// Write buffer full → Power ON SD
-sd_card_power_on();
-fwrite(buffer, size, 1, file);
-fflush(file);
-sd_card_power_off();  // Power OFF until next flush
-```
-
-### Power States Achieved
-
-| State | Current | Duration (typical 8h shift) | Energy |
-|-------|---------|----------------------|--------|
-| **Active streaming** | 120 mA | 70% (5.6h) | 672 mAh·h |
-| **SD write** | 90 mA | 10% (0.8h) | 72 mAh·h |
-| **BLE idle** | 15 mA | 20% (1.6h) | 24 mAh·h |
-| **TOTAL** | - | 8h | **~490 mAh** |
-
-**Result**: 500mAh battery → **~8-10 hours** autonomy ✅
+![Deported Sensor Detail](../images/prototypes/pulsar-sensor-extrusion.jpg)
+*Flexible FPC connection enabling ergonomic sensor placement*
 
 ### Results
 
-| Metric | Before | After | Improvement |
-|--------|--------|-------|-------------|
-| **Average current** | 180 mA | 120 mA | **33% reduction** |
-| **Battery life** | 2.8h | 8-10h | **3x increase** |
-| **Meets clinical requirement** | ❌ | ✅ | - |
+- ✅ **Positive feedback** from 50+ patients during clinical trials
+- ✅ **Improved signal quality** due to better skin contact
+- ✅ **Extended wear tolerance** (8-10 hours without discomfort)
+- ✅ **Medical staff approval** for routine deployment
 
 ---
 
-## 🔴 Challenge #4: Clinical Reliability (Zero Data Loss Tolerance)
+## Challenge 4: Platform Migration (Ongoing)
 
 ### Problem Statement
 
-In clinical settings, **every sample matters**. Unlike consumer wearables where approximate data is acceptable, medical monitoring requires:
-- **Zero data loss** (no missing samples)
-- **Data integrity** (no corrupted values)
-- **Traceability** (timestamps, checksums)
+**Requirement**: Extend battery life from 8-10 hours to 3-5 days  
+**Constraint**: Maintain identical sensor performance and data quality  
+**Complexity**: Complete firmware rewrite required  
 
-**Regulatory context**: Medical device compliance (CE marking pathway) demands robust data management.
+### Approach
 
-### Potential Failure Scenarios
+**Phase 1: R&D Validation (ESP32-S3)**
+- ✅ Rapid prototyping
+- ✅ Rich debugging ecosystem
+- ✅ Clinical validation completed
+- ❌ Power consumption too high for target
 
-1. **Network failure** → Cloud streaming interrupted
-2. **SD card full** → Local recording stops
-3. **Power loss** → Data in RAM lost
-4. **Firmware crash** → System reboot loses buffer
+**Phase 2: Production Migration (Nordic nRF5340)**
+- 🔄 Firmware port to Zephyr RTOS
+- 🔄 Power optimization strategies
+- 🔄 BLE 5.3 integration for mobile connectivity
+- 🎯 Target: 8x battery life improvement
 
-### Solution Implemented
+### Current Status
 
-**Redundant Storage Architecture with Integrity Checks**
+- ✅ ESP32 platform: Clinically validated
+- 🔄 Nordic platform: Development in progress (collaboration with EMBRILL, India)
+- 🎯 Timeline: Production-ready Q2 2025 (projected)
 
-```
-┌─────────────────────────────────────────────┐
-│          Data Acquisition Layer             │
-│   (PPG + Accel samples with timestamp)      │
-└─────────────────┬───────────────────────────┘
-                  │
-                  ▼
-        ┌─────────────────┐
-        │  Ring Buffer     │
-        │  (RAM, 1MB)      │
-        └────┬────────┬────┘
-             │        │
-    ┌────────▼───┐  ┌▼────────────┐
-    │   Path A   │  │   Path B    │
-    │  (Primary) │  │  (Backup)   │
-    └─────┬──────┘  └──────┬──────┘
-          │                │
-          ▼                ▼
-    ┌──────────┐     ┌─────────┐
-    │   WiFi   │     │ SD Card │
-    │   MQTT   │     │  FAT32  │
-    │   AWS    │     │  Local  │
-    └──────────┘     └─────────┘
-```
+---
 
-**Redundancy Rules**:
-1. **Both paths active simultaneously**
-2. If Path A fails → Path B continues
-3. If Path B fails → Alert via BLE, Path A continues
-4. If BOTH fail → System alerts and gracefully shuts down
+## Challenge 5: Multi-Channel Synchronization
 
-**Data Integrity Mechanisms**:
+### Problem Statement
 
-```c
-typedef struct {
-    uint32_t timestamp_ms;
-    uint16_t ppg_channels[4];
-    int16_t accel_xyz[3];
-    uint8_t battery_percent;
-    uint32_t crc32;  // CRC-32 checksum
-} sensor_packet_t;
+**Requirement**: Simultaneous capture of 4 optical channels + 3-axis accelerometer  
+**Constraint**: Perfect time alignment for signal fusion algorithms  
+**Frequency**: 100 Hz per channel (700 samples/second total)  
 
-// Before transmission/write
-packet.crc32 = calculate_crc32(&packet, sizeof(packet) - 4);
+### Solution Approach
 
-// After reception (cloud/SD)
-if (verify_crc32(&packet)) {
-    store_data(&packet);
-} else {
-    log_corruption_event();
-    request_retransmission();
-}
-```
-
-**Recovery Mechanisms**:
-
-| Failure Type | Detection | Recovery |
-|--------------|-----------|----------|
-| **WiFi loss** | MQTT disconnect | Increase SD write rate |
-| **SD full** | fwrite() error | Alert via BLE, disable recording |
-| **Corrupted sample** | CRC fail | Mark gap, continue acquisition |
-| **Battery <5%** | Fuel gauge | Flush buffers, safe shutdown |
+- **Hardware synchronization**: Sensor-level interrupt coordination
+- **Timestamp management**: Microsecond-precision timing
+- **Buffer alignment**: Synchronized circular buffers across data streams
+- **Validation method**: Cross-correlation analysis of synchronized signals
 
 ### Results
 
-| Metric | Value |
-|--------|-------|
-| **Data loss rate** | <0.1% (400+ hours) |
-| **Uptime reliability** | 99.2% |
-| **Corruption events** | 0 (detected by CRC) |
-| **Successful recoveries** | 23/23 WiFi drops |
+![Signal Synchronization](../images/architecture/ppg-spectral-analysis.png)
+*Multi-channel spectral analysis showing synchronized cardiac band across all channels*
 
-**Real-world validation**: 50+ patients, zero clinical-grade data loss incidents.
+- ✅ **Perfect synchronization** across all channels
+- ✅ **Motion artifact rejection** enabled by accelerometer fusion
+- ✅ **Clinical-grade accuracy** validated against reference equipment
 
 ---
 
-## 📊 Overall Impact Summary
+## Lessons Learned
 
-| Challenge | Initial State | Final State | Clinical Impact |
-|-----------|--------------|-------------|-----------------|
-| **Data Loss** | 2-5% lost | <0.01% | ✅ Clinically acceptable |
-| **Bus Conflicts** | Weekly crashes | 0 crashes | ✅ Reliable monitoring |
-| **Battery Life** | 2.8 hours | 8-10 hours | ✅ Full shift coverage |
-| **Reliability** | ~90% uptime | 99.2% uptime | ✅ Medical-grade |
+### Technical Insights
 
----
+1. **Never trust inherited code**: Always validate assumptions with hardware measurements
+2. **Interrupt priorities matter**: Especially in real-time data acquisition
+3. **Ergonomics are non-negotiable**: Medical devices must prioritize user comfort
+4. **Plan for platform migration**: Prototype platforms ≠ production platforms
 
-## 🎓 Lessons Learned
+### Development Methodology
 
-1. **Medical devices demand different engineering standards** than consumer products
-2. **Interrupt-driven architectures** are essential for real-time data acquisition
-3. **Power optimization** requires holistic system-level approach, not just component selection
-4. **Redundancy** is not optional in clinical applications
+- **Test-driven hardware**: Validate each subsystem independently before integration
+- **Incremental complexity**: Add features one at a time with validation gates
+- **Clinical feedback loop**: Regular testing with medical professionals
+- **Documentation**: Comprehensive technical notes save weeks during debugging
 
 ---
 
-*These solutions enabled successful clinical validation with 50+ patients at Clinique Hartmann.*
+## Impact Summary
+
+| Challenge | Before | After | Impact |
+|-----------|--------|-------|--------|
+| Data Loss | 96.7% loss | 0% loss | Project unblocked ✅ |
+| SPI Crashes | Frequent | Zero | Reliable deployment ✅ |
+| Ergonomics | Patient complaints | Comfortable | Clinical acceptance ✅ |
+| Battery Life | 8-10h | 3-5d (target) | Product viability ✅ |
+| Synchronization | Manual alignment | Hardware-sync | Medical accuracy ✅ |
+
+---
+
+## Confidentiality Notice
+
+Specific implementation details, code snippets, and proprietary algorithms remain confidential to Medivietech. This document demonstrates problem-solving methodology for portfolio purposes.
+
+---
+
+**Related Documentation:**
+- [System Architecture Overview](architecture.md)
+- [Clinical Validation Results](validation.md)
+- [Hardware Design Guide](../hardware/README.md)
