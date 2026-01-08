@@ -1,373 +1,282 @@
-# 🏥 PULSAR - Montre Physiologique Médicale
+# PULSAR — Medical Wearable for Clinical Monitoring
 
-> **Système de monitoring physiologique de précision médicale validé sur 50+ patients en milieu hospitalier**
-> 
-> Conçu et développé lors de mon stage de fin d'études chez **Medivietech** (Startup MedTech incubée à AGORANOV Paris)
+> **Hardware/Software engineering project | 6 months R&D at Medivietech (MedTech Startup)**  
+> **Clinical validation: 50+ patients | 400+ hours of data | 99.2% system uptime**
 
-[![Ingénierie](https://img.shields.io/badge/Ingénierie-Mécatronique-blue)](https://www.esme.fr)
-[![Hardware](https://img.shields.io/badge/Hardware-ESP32--S3%20%7C%20Nordic%20nRF5340-green)](#)
-[![Médical](https://img.shields.io/badge/Médical-Validation%20Clinique-red)](https://www.medivietech.com)
-[![Licence](https://img.shields.io/badge/Licence-Portfolio%20Uniquement-yellow)](#licence)
+[![Engineering](https://img.shields.io/badge/Engineering-Mechatronics-blue)](#)
+[![Hardware](https://img.shields.io/badge/Hardware-ESP32%20%7C%20Nordic%20nRF-green)](#)
+[![Medical](https://img.shields.io/badge/Status-Clinically%20Validated-red)](#)
 
 ---
 
-## 📸 Présentation du Projet
+## 📖 Documentation
 
-<p align="center">
-  <img src="images/prototypes/pulsar-final-renders.jpg" width="800" alt="PULSAR - Rendus 3D finaux (3 variantes de couleur)"/>
-  <br/>
-  <em>Rendus CAO professionnels des prototypes PULSAR (variantes Blanc, Bleu, Bordeaux)</em>
-</p>
-
-<p align="center">
-  <img src="images/prototypes/pulsar-dual-watches.jpg" width="600" alt="Prototypes physiques PULSAR-009 et PULSAR-007"/>
-  <br/>
-  <em>Prototypes physiques PULSAR-009 et PULSAR-007 avec bracelets silicone médical</em>
-</p>
+- **[📐 System Architecture](docs/architecture.md)** — Hardware/software architecture overview
+- **[🔧 Technical Challenges](docs/challenges.md)** — Engineering problems solved
+- **[🏥 Clinical Validation](docs/validation.md)** — Hospital deployment results (50+ patients)
+- **[🔌 Hardware Guide](hardware/README.md)** — Component specifications & PCB design
 
 ---
 
-## 🎯 Vue d'Ensemble
+## 📸 Project Showcase
 
-**PULSAR** est un dispositif médical portable conçu pour le **monitoring physiologique continu** en environnement hospitalier. Contrairement aux wearables grand public (Fitbit, Garmin, WHOOP), PULSAR atteint une **précision clinique** validée face à des équipements médicaux professionnels.
-
-### Réalisations Clés
-
-- ✅ **50+ patients** monitorés à la Clinique Hartmann (Neuilly-sur-Seine)
-- ✅ **400+ heures** de données cliniques collectées
-- ✅ **99,2% de disponibilité** durant la période de validation de 3 mois
-- ✅ **15+ prototypes fonctionnels** produits
-- ✅ **0% de perte de données** grâce à l'architecture FIFO optimisée
-- ✅ **8-10h d'autonomie** en mode acquisition continue (prototypes ESP32-S3)
-- ✅ **3-5 jours d'autonomie** visés sur la version industrielle Nordic nRF5340
-
----
-
-## 🔬 Points Techniques Forts
-
-### Capteur PPG Multi-Spectral
-- **MAX86916** capteur optique 4 canaux (Rouge, Infrarouge, Vert, Bleu)
-- **100 Hz par LED** fréquence d'échantillonnage
-- **Résolution ADC 19-bit** (32 768 niveaux)
-- **Architecture PCB déporté** via nappe flexible FPC
-
-### Innovation Hardware
-- **ESP32-S3** microcontrôleur dual-core (240 MHz) pour prototypage
-- **Nordic nRF5340** dual-core ARM Cortex-M33 pour industrialisation
-- **Architecture dual-mode** : WiFi + AWS **ou** enregistrement SD autonome
-- **Fuel gauge** intégré pour monitoring précis de batterie
-- **Accéléromètre 3 axes** pour détection d'artefacts de mouvement
-- **Conception mécanique custom** (impression 3D, SolidWorks)
-
-### Métriques de Performance
-
-| Métrique | Spécification | Résultat |
-|----------|--------------|----------|
-| **Fréquence d'échantillonnage** | 100 Hz/canal | ✅ Stable |
-| **Intégrité des données** | 0% de perte requis | ✅ 0% de perte mesuré |
-| **Autonomie ESP32-S3** | 8h minimum | ✅ 8-10h validé |
-| **Autonomie Nordic (cible)** | N/A | 🎯 3-5 jours |
-| **Disponibilité clinique** | 95%+ requis | ✅ 99,2% atteint |
-| **Vitesse d'upload** | N/A | 40 Ko/s via WiFi |
+<table>
+<tr>
+<td width="50%">
+<img src="images/prototypes/pulsar-final-renders.jpg" alt="PULSAR 3D Renders"/>
+<p align="center"><i>Professional CAD renders of PULSAR prototypes</i></p>
+</td>
+<td width="50%">
+<img src="images/prototypes/pulsar-dual-watches.jpg" alt="Physical Prototypes"/>
+<p align="center"><i>Functional prototypes PULSAR-007 & PULSAR-009</i></p>
+</td>
+</tr>
+<tr>
+<td width="50%">
+<img src="images/prototypes/pulsar-sensor-extrusion.jpg" alt="Deported Sensor Detail"/>
+<p align="center"><i>Deported circular sensor via FPC ribbon cable</i></p>
+</td>
+<td width="50%">
+<img src="images/prototypes/pulsar-open-housing.jpg" alt="Internal Electronics"/>
+<p align="center"><i>Internal integration: LiPo battery + PCB</i></p>
+</td>
+</tr>
+</table>
 
 ---
 
-## 📐 Architecture Système
+## 🎯 What is PULSAR?
 
-### Architecture Matérielle - Prototypes ESP32-S3
+PULSAR is a **medical-grade wearable device** for continuous physiological monitoring in hospital environments. Unlike consumer wearables (Fitbit, WHOOP), PULSAR achieves **clinical-level precision** validated against professional medical equipment.
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                    Architecture PULSAR (ESP32)                │
-├──────────────────────────────────────────────────────────────┤
-│                                                                │
-│  ┌──────────────┐      ┌────────────────────────────┐        │
-│  │  MAX86916    │◄────►│   ESP32-S3-WROOM-1-N      │        │
-│  │  Capteur PPG │ FPC  │   Dual-Core 240MHz        │        │
-│  │  (Déporté)   │ 6pin │   8MB PSRAM               │        │
-│  └──────────────┘      └────────────────────────────┘        │
-│         │                         │                           │
-│         │                         ├─► [LIS3DHTR] Accéléro    │
-│         │                         ├─► [MAX1704x] Fuel Gauge  │
-│         │                         ├─► [Slot Carte SD]        │
-│         │                         └─► [LED NeoPixel]         │
-│         │                                                      │
-│         └─► I2C @ 400kHz (via TCA9509 level shifter 3.3V→1.8V)│
-│                                                                │
-│  Alimentation : LiPo 3.7V 850mAh → 8-10h d'autonomie         │
-└──────────────────────────────────────────────────────────────┘
-```
+**My role:** Complete hardware/software development from legacy prototype debugging to clinical deployment.
 
-### Architecture Matérielle - Version Industrielle Nordic nRF5340
+### Key Achievements
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│              Architecture PULSAR (Nordic nRF5340)             │
-├──────────────────────────────────────────────────────────────┤
-│                                                                │
-│  ┌──────────────┐      ┌────────────────────────────┐        │
-│  │  MAX86916    │◄────►│   ISP2053-AX (nRF5340)    │        │
-│  │  Capteur PPG │ I2C  │   Dual ARM Cortex-M33     │        │
-│  │  4 canaux    │400kHz│   App Core @ 128MHz       │        │
-│  └──────────────┘      │   Net Core @ 64MHz        │        │
-│                        └────────────────────────────┘        │
-│                                  │                            │
-│                                  ├─► [LIS2DE12TR] Accéléro   │
-│                                  ├─► [MAX30208] Température  │
-│                                  ├─► [BQ25170] Chargeur      │
-│                                  ├─► [MX25R6435F] NOR Flash  │
-│                                  └─► [AN7002Q-P] WiFi 6      │
-│                                                                │
-│  Alimentation : LiPo 3.7V 550mAh → 3-5 jours d'autonomie     │
-└──────────────────────────────────────────────────────────────┘
-```
-
-**[📖 Documentation Architecture Détaillée](docs/architecture.md)**
+| Metric | Result |
+|--------|--------|
+| **Clinical Validation** | 50+ patients @ Clinique Hartmann (Neuilly-sur-Seine) |
+| **Data Collected** | 400+ hours of medical-grade recordings |
+| **System Reliability** | 99.2% uptime during 3-month deployment |
+| **Data Integrity** | 0% data loss (FIFO optimization) |
+| **Prototypes Built** | 15+ functional units |
+| **Battery Life** | 8-10h (ESP32 prototypes) → 3-5 days target (Nordic production) |
 
 ---
 
-## 🛠️ Défis Techniques Résolus
+## 🛠️ Technical Highlights
 
-### 1. **Résolution du Débordement FIFO** ❌→✅
-**Problème** : L'implémentation originale rejetait 29 échantillons sur 30  
-**Solution** : Refonte complète de la gestion FIFO → **0% de perte de données**
+### Hardware Engineering
+- ✅ **Multi-channel optical sensor integration** (PPG 4-channel, 100 Hz sampling)
+- ✅ **Custom PCB design** with deported circular sensor (ergonomic wearability)
+- ✅ **Power optimization** (fuel gauge monitoring, LiPo charging circuit)
+- ✅ **Mechanical CAD design** for 3D-printed enclosures (15+ iterations)
+- ✅ **Sensor fusion** (accelerometer + PPG for motion artifact rejection)
 
-### 2. **Conflits Bus SPI** ❌→✅
-**Problème** : Carte SD + Accéléromètre partageant le bus SPI causaient des plantages  
-**Solution** : Basculement en mode SPI exclusif avec temporisation appropriée
+<img src="images/hardware/max86916-sensor.jpg" alt="Deported Sensor PCB" width="400"/>
 
-### 3. **Ergonomie PCB** ❌→✅
-**Problème** : PCB carré inconfortable pour port au poignet  
-**Solution** : Capteur déporté circulaire (Ø10mm) via nappe FPC flexible
+*Circular deported optical sensor (Ø10mm) connected via flexible FPC ribbon cable*
 
-### 4. **Transition R&D → Production** 🔄
-**Défi actuel** : Migration ESP32-S3 → Nordic nRF5340 pour industrialisation  
-**Objectif** : Multiplier l'autonomie par 8 tout en conservant les performances
+### Embedded Software Development
+- ✅ **Real-time firmware** for dual-core ESP32-S3 (240 MHz)
+- ✅ **Zero-loss data pipeline** (resolved critical FIFO overflow bug)
+- ✅ **Dual-mode architecture** (WiFi + AWS cloud / Standalone SD card recording)
+- ✅ **Protocol implementation** (I2C @ 400kHz, SPI, FAT32 file system)
+- ✅ **Memory optimization** (PSRAM management for continuous acquisition)
 
-**[🔧 Défis Techniques Détaillés](docs/challenges.md)**
+### Signal Processing
+- ✅ **PPG waveform analysis** (multi-spectral: Red, IR, Green, Blue channels)
+- ✅ **Data encoding** (JSON chunking + Base64 for cloud upload)
+- ✅ **Clinical-grade accuracy** validated against hospital equipment
 
----
-
-## 🏥 Validation Clinique
-
-### Déploiement Hospitalier
-- **Lieu** : Clinique Hartmann, Neuilly-sur-Seine (92)
-- **Superviseur** : Dr. Lee (Service de Réanimation)
-- **Durée** : 3 mois de tests continus
-- **Patients** : 50+ (démographies diverses)
-- **Sessions** : 24 enregistrements de 5 minutes par patient
-
-### Résultats de Validation
-
-| Paramètre | Objectif | Résultat |
-|-----------|----------|----------|
-| **Disponibilité** | 95% minimum | 99,2% atteint ✅ |
-| **Qualité des données** | Précision clinique | Validée ✅ |
-| **Confort utilisateur** | Confortable | Retours positifs ✅ |
-| **Sécurité** | Zéro incident | Zéro incident ✅ |
-
-**[📊 Rapport de Validation Complet](docs/validation.md)**
+<table>
+<tr>
+<td width="50%">
+<img src="images/architecture/ppg-principle.png" alt="PPG Sensor Principle"/>
+<p align="center"><i>Photoplethysmography (PPG) measurement principle</i></p>
+</td>
+<td width="50%">
+<img src="images/architecture/ppg-waveform.png" alt="PPG Waveform"/>
+<p align="center"><i>Typical PPG signal with cardiac features</i></p>
+</td>
+</tr>
+</table>
 
 ---
 
-## 🔄 Évolution du Projet
+## 🏥 Clinical Deployment
 
-### Phase 1 : Analyse du Prototype Hérité (Avril 2024)
-- Diagnostic du problème critique de débordement FIFO
-- Identification des conflits bus SPI
-- Évaluation des limitations ergonomiques
+**Location:** Clinique Hartmann (Neuilly-sur-Seine, France)  
+**Supervising Physician:** Dr. Lee (Intensive Care Unit)  
+**Duration:** 3 months continuous testing  
+**Patient Demographics:** 50+ patients (diverse age groups, pathologies)
 
-### Phase 2 : Refonte Architecture (Mai-Juin 2024)
-- Implémentation du design capteur déporté
-- Résolution du pipeline d'acquisition de données
-- Ajout de la capacité dual-mode (WiFi/SD)
-
-### Phase 3 : Validation Clinique (Juillet-Septembre 2024)
-- Déploiement de 15 prototypes à la Clinique Hartmann
-- Collection de 400+ heures de données patients
-- Atteinte de 99,2% de disponibilité système
-
-### Phase 4 : Préparation Industrialisation (Septembre 2024)
-- Collaboration avec EMBRILL (Inde) pour migration Nordic nRF5340
-- Transfert de connaissances pour design production
-- Objectif : 3-5 jours d'autonomie batterie (amélioration ×8)
+### Validation Results
+- ✅ **Medical precision** validated against professional oximeters
+- ✅ **99.2% system uptime** (only 2 units had minor issues over 90 days)
+- ✅ **User comfort** confirmed by medical staff and patients
+- ✅ **Zero safety incidents** throughout deployment period
 
 ---
 
-## 📂 Structure du Repository
+## 💡 Problem-Solving Experience
+
+### Challenge 1: Critical FIFO Overflow ❌ → ✅
+**Inherited Problem:** Original firmware discarded 29 out of 30 samples  
+**Root Cause:** Incorrect FIFO read logic + buffer overflow  
+**Solution:** Complete redesign of data acquisition pipeline  
+**Result:** **0% data loss** on all 15 deployed units
+
+### Challenge 2: SPI Bus Conflicts ❌ → ✅
+**Problem:** SD card + Accelerometer sharing SPI bus caused system crashes  
+**Solution:** Exclusive SPI access with proper timing guards  
+**Result:** Stable 8-10h continuous recording sessions
+
+### Challenge 3: Wearable Ergonomics ❌ → ✅
+**Problem:** Square PCB uncomfortable for wrist wear  
+**Solution:** Circular deported sensor (Ø10mm) via flexible FPC cable  
+**Result:** Positive comfort feedback from 50+ patients
+
+---
+
+## 🔧 Technologies Used
+
+**Microcontrollers:**  
+- ESP32-S3 (R&D prototyping: 240 MHz dual-core, 8MB PSRAM)
+- Nordic nRF5340 (Production target: ARM Cortex-M33, ultra-low power)
+
+**Sensors & Components:**  
+- Multi-spectral optical sensor (PPG 4-channel @ 100 Hz)
+- 3-axis accelerometer (motion detection)
+- Fuel gauge IC (battery monitoring)
+- MicroSD card (FAT32 storage)
+
+**Connectivity:**  
+- WiFi 802.11n (AWS S3 upload pipeline)
+- Bluetooth 5.0 LE (future mobile app support)
+
+**Development Tools:**  
+- **Firmware:** C/C++, Arduino/ESP-IDF, VS Code, Git
+- **PCB Design:** EasyEDA Pro
+- **Mechanical CAD:** SolidWorks, Fusion 360
+- **Cloud:** AWS S3, AWS Lambda
+- **Analysis:** Python (data extraction, FFT analysis)
+
+<img src="images/architecture/ppg-spectral-analysis.png" alt="FFT Analysis" width="700"/>
+
+*Spectral analysis of 4-channel PPG data (cardiac frequency band highlighted)*
+
+---
+
+## 📂 Repository Structure
 
 ```
 PULSAR/
-├── docs/                      # Documentation technique
-│   ├── architecture.md        # Architecture système détaillée
-│   ├── challenges.md          # Problèmes techniques résolus
-│   └── validation.md          # Résultats validation clinique
-├── hardware/                  # Spécifications matérielles
-│   ├── README.md             # Vue d'ensemble hardware
-│   └── component-list.md     # Liste complète des composants (BOM)
-└── images/                    # Documentation visuelle
-    ├── prototypes/           # Photos dispositifs physiques
-    ├── hardware/             # Photos PCB et composants
-    ├── cad/                  # Rendus SolidWorks
-    └── architecture/         # Diagrammes techniques
+├── README.md                      # Portfolio presentation (this file)
+├── LICENSE.md                     # Confidentiality notice
+├── docs/                          # Technical documentation
+│   ├── architecture.md            # System architecture overview
+│   ├── challenges.md              # Technical challenges solved
+│   └── validation.md              # Clinical validation results
+├── hardware/                      # Hardware specifications
+│   ├── README.md                  # Hardware guide
+│   └── component-list.md          # Bill of Materials
+└── images/                        # Visual documentation
+    ├── prototypes/                # Physical device photos
+    ├── hardware/                  # PCB and component photos
+    ├── cad/                       # CAD renders
+    └── architecture/              # Technical diagrams
 ```
 
----
-
-## 🎓 Compétences Démontrées
-
-### **Ingénierie Hardware**
-- Conception PCB (EasyEDA Pro)
-- Intégration de capteurs (protocoles I2C, SPI)
-- Optimisation de gestion d'énergie
-- Conception CAO mécanique (Fusion 360, SolidWorks)
-
-### **Software Embarqué**
-- Développement firmware ESP32-S3 (Arduino/ESP-IDF)
-- Acquisition de données temps réel (concepts RTOS)
-- Optimisation mémoire (gestion PSRAM)
-- Implémentation de protocoles (I2C, SPI, carte SD)
-
-### **Architecture Système**
-- Communication dual-mode (WiFi/SD)
-- Conception de pipeline de données (chunking JSON, encodage Base64)
-- Intégration cloud (AWS S3)
-- Optimisation autonomie batterie
-
-### **Développement Dispositif Médical**
-- Méthodologie de validation clinique
-- Assurance qualité données de précision médicale
-- Protocoles de déploiement hospitalier
-- Considérations réglementaires (parcours marquage CE)
-
-### **Collaboration Internationale**
-- Transfert de connaissances techniques (EMBRILL, Inde)
-- Documentation professionnelle multilingue
-- Gestion de projet R&D en environnement startup
-- Communication avec équipes médicales
+**Note:** Hardware schematics, firmware source code, and detailed system architectures remain confidential per Medivietech company policy. Documentation in `/docs/` provides high-level technical context without revealing proprietary implementations.
 
 ---
 
-## 🔬 Technologies Utilisées
+## 🎓 Skills Demonstrated
 
-### **Prototypage R&D (ESP32-S3)**
-- **Microcontrôleur** : ESP32-S3-WROOM-1-N (Dual-core Xtensa @ 240MHz, 8MB PSRAM)
-- **Capteur PPG** : MAX86916EFD+ (4 canaux, 19-bit ADC)
-- **Accéléromètre** : LIS3DHTR (3 axes @ 100Hz)
-- **Fuel Gauge** : MAX1704x (I2C)
-- **Stockage** : MicroSD card (FAT32, LittleFS)
-- **Connectivité** : WiFi 802.11 b/g/n, Bluetooth 5.0 LE
+### Technical Competencies
+- **Embedded Systems:** Firmware development, RTOS concepts, memory optimization
+- **Hardware Design:** PCB design, sensor integration, power management
+- **Signal Processing:** PPG analysis, FFT, artifact rejection algorithms
+- **CAD Engineering:** Mechanical design for wearable devices
+- **IoT Architecture:** WiFi connectivity, cloud integration (AWS), data pipelines
+- **Medical Devices:** Clinical validation methodology, hospital deployment
 
-### **Industrialisation (Nordic nRF5340)**
-- **Microcontrôleur** : ISP2053-AX nRF5340 (Dual ARM Cortex-M33)
-- **Capteur PPG** : MAX86916 (conservation écosystème capteurs)
-- **IMU** : LIS2DE12TR (3 axes, low-power)
-- **Température** : MAX30208 (±0.1°C précision clinique)
-- **Flash** : MX25R6435F (8MB NOR Flash QSPI)
-- **WiFi** : AN7002Q-P (nRF7002, WiFi 6 + BLE 5.3)
-- **RTOS** : Zephyr Project
-
-### **Logiciels & Outils**
-- **IDE** : VS Code, Arduino IDE, nRF Connect SDK
-- **CAO Mécanique** : SolidWorks, Fusion 360
-- **CAO Électronique** : EasyEDA Pro
-- **Langages** : C/C++ (embarqué), Python (outils extraction)
-- **Cloud** : AWS S3, AWS Lambda
-- **Versioning** : Git, GitHub
+### Professional Skills
+- **R&D Project Management:** Led project from debugging to clinical validation
+- **Cross-functional Collaboration:** Worked with medical staff, regulatory teams
+- **Technical Documentation:** Created multilingual documentation for international partners
+- **Problem-Solving:** Diagnosed and resolved critical system bugs under time pressure
+- **Startup Environment:** Operated autonomously with minimal supervision
 
 ---
 
-## 📚 Projets Connexes
+## 📄 License & Confidentiality
 
-Ce projet s'inscrit dans une mission R&D plus large chez Medivietech :
+This repository showcases my engineering work during my internship at **Medivietech** (AGORANOV Paris).  
+Intellectual property belongs to Medivietech.
 
-- **PULSAR** (ce repo) : Montre médicale portable
-- **BABYCAM** : Caméra bébé intelligente avec IA embarquée (ESP32-P4)
-- **Migration Nordic** : Productisation industrielle nRF5340
+**✅ Authorized:** Portfolio review for recruitment/freelance evaluation  
+**❌ Not Authorized:** Commercial use, code reproduction, derivative products  
 
----
-
-## 🤝 Contexte Professionnel
-
-**Entreprise** : Medivietech (Startup MedTech)  
-**Localisation** : AGORANOV Paris (Incubateur Deep-Tech de référence en France)  
-**Rôle** : Stagiaire Ingénieur Hardware/Software (6 mois)  
-**Équipe** : CEO (Neil Benhamou), CTO (Thomas Baret - IA/Data), Ingénieur QARA  
-**Collaboration** : EMBRILL (Inde) pour l'industrialisation  
-**Période** : Avril - Octobre 2024
+For commercial inquiries: [contact@medivietech.com](mailto:contact@medivietech.com)
 
 ---
 
-## 📄 Licence
-
-**Usage Portfolio & Référence Uniquement**
-
-Ce repository présente mon travail d'ingénierie réalisé durant mon stage chez Medivietech. La propriété intellectuelle appartient à Medivietech.
-
-- ✅ **Autorisé** : Consultation, référence pour évaluation recrutement/freelance
-- ❌ **Non autorisé** : Utilisation commerciale, reproduction de code, produits dérivés
-
-Pour toute demande commerciale concernant la technologie Medivietech, merci de contacter : [contact@medivietech.com](mailto:contact@medivietech.com)
-
----
-
-## 👤 À Propos
+## 👤 About Me
 
 **Tom HUYGHE**  
-*Ingénieur Mécatronique | Spécialiste Systèmes Embarqués | Innovateur MedTech*
+*Mechatronics Engineer | Embedded Systems Specialist | MedTech Innovator*
 
-🎓 **ESME SUDRIA** - Diplôme d'Ingénieur (Mécatronique & Systèmes Embarqués)  
-🏢 **Freelance** : Disponible pour projets hardware/software embarqués  
-💼 **Ouvert à** : Opportunités CDI dans la MedTech, IoT, Wearables
+🎓 **ESME SUDRIA** — Engineering Degree (Mechatronics & Embedded Systems)  
+🏢 **Currently:** Freelance embedded consultant + Open to full-time opportunities  
+💼 **Interests:** MedTech, IoT, Wearables, Signal Processing  
 
 ### 📬 Contact
 
-- 📧 Email : [Votre Email]
-- 💼 LinkedIn : [Votre LinkedIn]
-- 🌐 Portfolio : [Votre Site Web]
-- 🏢 Micro-Entreprise (SIRET : 99486587100010)
-- 💰 TJM Freelance : 350€/jour
+📧 **Email:** [tom.huyghe@example.com]  
+💼 **LinkedIn:** [linkedin.com/in/tom-huyghe]  
+🌐 **Portfolio:** [tomhuyghe.dev]  
+🏢 **SIRET:** 99486587100010 (Micro-entreprise)  
+💰 **Freelance Rate:** 350€/day  
 
-### 💡 Expertise
-
-- Firmware embarqué (ESP32, Nordic, STM32)
-- Conception & prototypage PCB
-- Traitement du signal (PPG, IMU)
-- Développement de dispositifs médicaux
-- Architectures IoT (WiFi, BLE, Cloud)
-- Outillage Python & automatisation
-
----
-
-## ⭐ Remerciements
-
-Remerciements particuliers à :
-- **Neil Benhamou** (CEO, Medivietech) - Pour la confiance et l'autonomie technique accordées
-- **Thomas Baret** (CTO, Medivietech) - Pour la collaboration IA/Data
-- **Dr. Lee** (Clinique Hartmann) - Pour le support validation clinique
-- **AGORANOV** - Pour l'environnement incubateur inspirant
-- **Équipe EMBRILL** - Pour le partenariat industrialisation
+### 💡 Core Expertise
+- Embedded firmware (ESP32, Nordic nRF, STM32)
+- PCB design & rapid prototyping
+- Physiological signal processing (PPG, ECG, IMU)
+- Medical device development & validation
+- IoT cloud architectures
+- Python tooling & data analysis
 
 ---
 
-<p align="center">
-  <strong>⚡ Conçu avec passion pour l'innovation MedTech ⚡</strong>
-  <br/>
-  <em>Transformer des compétences d'ingénierie en dispositifs médicaux améliorant la vie</em>
-</p>
+## 🏢 Professional Context
+
+**Company:** [Medivietech](https://www.medivietech.com) (MedTech Startup)  
+**Incubator:** AGORANOV Paris (Leading French Deep-Tech Incubator)  
+**Role:** Hardware/Software Engineering Intern  
+**Duration:** 6 months (April - October 2024)  
+**Team:** CEO (Neil Benhamou), CTO (Thomas Baret - AI/Data), QARA Engineer  
+**International Partnership:** EMBRILL (India) for industrialization
 
 ---
 
-## 📸 Galerie Supplémentaire
+## 🙏 Acknowledgments
 
-<p align="center">
-  <img src="images/prototypes/pulsar-open-housing.jpg" width="400" alt="Vue interne du boîtier PULSAR"/>
-  <img src="images/prototypes/pulsar-sensor-extrusion.jpg" width="400" alt="Détail capteur PPG déporté"/>
-  <br/>
-  <em>Gauche : Intégration électronique interne | Droite : Détail nappe FPC et capteur déporté</em>
-</p>
+Special thanks to:
+- **Neil Benhamou** (CEO, Medivietech) — For entrusting me with technical autonomy
+- **Thomas Baret** (CTO, Medivietech) — For AI/Data collaboration
+- **Dr. Lee** (Clinique Hartmann) — For clinical validation support
+- **AGORANOV** — For the inspiring startup environment
+- **EMBRILL Team** (India) — For industrialization partnership
 
 ---
 
-**Dernière mise à jour** : Janvier 2025  
-**Version du projet** : Prototypes ESP32-S3 validés cliniquement | Migration Nordic nRF5340 en cours
+**⚡ Engineered with passion for MedTech innovation ⚡**
+
+*Transforming engineering skills into medical devices that improve lives*
+
+---
+
+**Last Updated:** January 2025  
+**Project Status:** ✅ Clinical validation completed | 🔄 Production migration ongoing (Nordic nRF5340)
