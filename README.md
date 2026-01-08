@@ -1,221 +1,154 @@
-# PULSAR - Montre de Monitoring Physiologique 🏥
+# PULSAR - Medical-Grade Physiological Monitoring Smartwatch
 
-**Dispositif médical connecté pour la surveillance des paramètres physiologiques en milieu hospitalier**
+> **Portfolio Project** | Developed during my hardware engineering internship at Medivietech (AGORANOV Paris)  
+> Clinically validated on **50+ patients** at Clinique Hartmann
 
-![PULSAR Device](docs/images/pulsar-device.jpg)
-
-> **Note**: Le code source est propriété de [Medivietech](https://www.medivietech.com) et reste confidentiel. Ce repository présente l'architecture technique, la méthodologie et les résultats du projet.
+[![Hardware](https://img.shields.io/badge/Hardware-ESP32--S3-blue)](https://www.espressif.com/)
+[![Sensors](https://img.shields.io/badge/Sensors-MAX86916_PPG-green)](https://www.maximintegrated.com/)
+[![Status](https://img.shields.io/badge/Status-Prototype_Validated-success)](https://github.com/tomhyg/PULSAR)
 
 ---
 
-## 🎯 Contexte du Projet
+## 🎯 Project Overview
 
-- **Entreprise**: Medivietech (Startup MedTech incubée à AGORANOV Paris)
-- **Période**: Avril 2025 - Octobre 2025 (6 mois)
-- **Rôle**: Hardware/Software Engineer (Stage de fin d'études)
-- **Équipe**: Neil Benhamou (CEO), Thomas Baret (CTO)
-- **Validation**: Tests cliniques à la Clinique Hartmann avec 50+ patients
+**PULSAR** is a medical-grade wearable device designed for continuous physiological monitoring in clinical settings. As the lead hardware/software engineer, I developed the complete prototype from PCB design to clinical validation.
 
-## 📝 Problématique
+### Key Achievements
+- ✅ **15 functional prototypes** manufactured and tested
+- ✅ **50+ patients** monitored in clinical trials (Clinique Hartmann, Paris)
+- ✅ **Dual-mode architecture**: Real-time WiFi/AWS streaming + Standalone SD recording
+- ✅ **8-10 hours** battery autonomy on prototype
+- ✅ **Multi-sensor fusion**: PPG (4 channels), accelerometry, temperature
 
-Les dispositifs de monitoring hospitaliers actuels présentent plusieurs limitations :
-- Systèmes filaires encombrants limitant la mobilité du patient
-- Coût élevé des solutions professionnelles existantes
-- Manque de flexibilité dans la collecte et l'analyse des données
-- Interfaces peu intuitives pour le personnel médical
+---
 
-**Mission** : Développer une montre connectée médicale autonome pour le monitoring continu des paramètres physiologiques, avec validation clinique en conditions réelles.
+## 🔧 Technical Architecture
 
-## 🔧 Solution Technique
+### Hardware Design
+- **MCU**: ESP32-S3 (Dual-core Xtensa @ 240MHz)
+- **Sensors**:
+  - MAX86916 PPG sensor (4 optical channels, I²C)
+  - LIS3DH accelerometer (SPI, motion detection)
+  - Fuel gauge for precise battery monitoring
+- **PCB**: Dual-board design (main + sensor module) connected via FPC
+- **Mechanical**: Custom watch housing designed in SolidWorks
 
-### Architecture Générale
+### Software Stack
+- **Firmware**: C/C++ (ESP-IDF framework)
+- **Connectivity**: WiFi, BLE, AWS IoT Core
+- **Data Pipeline**: Real-time MQTT streaming + local SD storage
+- **Mobile App**: Flutter (patient interface)
 
+### System Features
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    PULSAR Watch                              │
-│  ┌──────────────┐      ┌─────────────┐    ┌──────────────┐ │
-│  │  MAX86916    │─────▶│   ESP32-S3  │───▶│  SD Card     │ │
-│  │ (PPG Sensor) │      │  (Main MCU) │    │  Storage     │ │
-│  └──────────────┘      └─────────────┘    └──────────────┘ │
-│         │                     │                    │         │
-│         │                     ▼                    │         │
-│         │            ┌─────────────────┐           │         │
-│         └───────────▶│  FreeRTOS FIFO  │◀──────────┘         │
-│                      └─────────────────┘                     │
-│                             │                                │
-│                             ▼                                │
-│                    ┌─────────────────┐                       │
-│                    │   WiFi Module   │                       │
-│                    └─────────────────┘                       │
-└────────────────────────────┬──────────────────────────────┘
-                             │
-                             ▼
-                    ┌─────────────────┐
-                    │    AWS IoT      │
-                    │    Core MQTT    │
-                    └─────────────────┘
-                             │
-                             ▼
-                    ┌─────────────────┐
-                    │  Flutter App    │
-                    │  (Visualization)│
-                    └─────────────────┘
+┌─────────────────────────────────────────┐
+│          PULSAR Architecture            │
+├─────────────────────────────────────────┤
+│  PPG Sensor  →  ESP32-S3  →  WiFi/AWS   │
+│  Accel/Temp  →  (Processing) → SD Card  │
+│  Battery     →  BLE Control  → Mobile   │
+└─────────────────────────────────────────┘
 ```
 
-### Stack Technique
+---
 
-#### Hardware
-- **Microcontrôleur**: ESP32-S3 (Dual-core Xtensa LX7, WiFi/BLE)
-- **Capteur PPG**: MAX86916 (SpO2, fréquence cardiaque)
-- **Accéléromètre**: Détection de mouvement et d'activité
-- **Stockage**: Carte SD pour enregistrement local
-- **Interface**: Écran OLED pour feedback utilisateur
-- **Connectivité**: WiFi (2.4GHz) + BLE 5.0
+## 💡 Technical Challenges Solved
 
-#### Firmware Embarqué
-- **OS**: FreeRTOS (gestion temps réel multi-tâches)
-- **Langage**: C/C++ (Arduino framework)
-- **Architecture**: FIFO double buffer pour acquisition continue
-- **Protocole**: MQTT over TLS 1.2 pour communication sécurisée
-- **Gestion d'énergie**: Sleep modes pour autonomie optimisée
+### 1. High-Frequency Data Loss Prevention
+**Problem**: MAX86916 FIFO overflow causing data loss at 100Hz sampling  
+**Solution**: Implemented interrupt-driven FIFO reading with dual-buffer DMA transfers
 
-#### Cloud & Backend
-- **Infrastructure**: AWS IoT Core
-- **Protocole**: MQTT avec QoS 1
-- **Sécurité**: Certificats X.509 pour authentification
-- **Stockage**: Dual architecture (Cloud + SD card locale)
+### 2. SPI Bus Conflicts
+**Problem**: Concurrent access between accelerometer and SD card on shared SPI bus  
+**Solution**: Custom mutex-based bus arbitration with priority queuing
 
-#### Application Mobile
-- **Framework**: Flutter/Dart (cross-platform iOS/Android)
-- **Fonctionnalités**: 
-  - Visualisation temps réel des données physiologiques
-  - Graphiques interactifs
-  - Alertes et notifications
-  - Synchronisation cloud
+### 3. Power Optimization
+**Problem**: Achieving 8+ hours autonomy with continuous streaming  
+**Solution**: Dynamic power modes, sensor duty cycling, optimized WiFi sleep patterns
 
-## 🚀 Réalisations Techniques
-
-### 1. Résolution de Problèmes Critiques
-
-#### Problème : Perte de données FIFO
-**Symptôme** : Pertes aléatoires de données entre le capteur MAX86916 et l'ESP32, compromettant la fiabilité des mesures.
-
-**Solution implémentée** :
-- Architecture FIFO double buffer avec gestion asynchrone
-- Synchronisation optimisée entre tâches FreeRTOS
-- Mécanisme de récupération automatique en cas de buffer overflow
-- Logging détaillé pour monitoring de la qualité d'acquisition
-
-**Résultat** : 99.8% de fiabilité d'acquisition sur sessions de 8+ heures
-
-#### Problème : Conflit bus SPI
-**Symptôme** : Conflit entre l'accéléromètre et la carte SD sur le bus SPI, causant des corruptions de données.
-
-**Solution implémentée** :
-- Refonte complète de la gestion du bus SPI avec arbitrage
-- Implémentation de mutex FreeRTOS pour accès concurrent
-- Optimisation des transactions SPI (burst mode)
-- Séparation des canaux DMA
-
-**Résultat** : Stabilité parfaite avec taux d'erreur < 0.01%
-
-### 2. Architecture Hybride Cloud + Local
-
-**Dual storage strategy** :
-- **Mode connecté** : Streaming temps réel vers AWS IoT (MQTT)
-- **Mode déconnecté** : Enregistrement local sur carte SD (jusqu'à 72h d'autonomie)
-- **Synchronisation automatique** : Upload des données locales à la reconnexion
-- **Fallback intelligent** : Basculement automatique en cas de perte réseau
-
-**Avantages** :
-- ✅ Aucune perte de données en cas de coupure réseau
-- ✅ Flexibilité d'utilisation en environnement hospitalier contraint
-- ✅ Conformité RGPD avec stockage local optionnel
-
-### 3. Validation Clinique
-
-**Protocole de test** :
-- **Lieu** : Clinique Hartmann (établissement certifié)
-- **Échantillon** : 50+ patients sur 3 mois
-- **Mesures** : Comparaison avec équipement médical de référence
-- **Métriques** : Précision, fiabilité, confort, autonomie
-
-**Résultats** :
-- ✅ Précision cardiaque : ±2 BPM vs équipement de référence
-- ✅ SpO2 : ±1% de précision
-- ✅ Autonomie : 18-24h en usage continu
-- ✅ Taux de satisfaction patients : 92%
-- ✅ Validation du protocole pour certification médicale
-
-## 📊 Indicateurs de Performance
-
-| Métrique | Valeur |
-|----------|--------|
-| **Fiabilité d'acquisition** | 99.8% |
-| **Précision cardiaque** | ±2 BPM |
-| **Précision SpO2** | ±1% |
-| **Autonomie batterie** | 18-24h |
-| **Latence cloud** | <500ms |
-| **Patients testés** | 50+ |
-| **Heures de données cliniques** | 1000+ |
-
-## 🎓 Compétences Développées
-
-### Techniques
-- Développement firmware temps réel (FreeRTOS, multi-threading)
-- Intégration de capteurs physiologiques (I2C, SPI, PPG)
-- Architecture IoT médicale (MQTT, AWS IoT Core, certificats X.509)
-- Debugging hardware/software complexe (oscilloscope, analyseur logique)
-- PCB design et prototypage électronique
-- Développement mobile cross-platform (Flutter)
-- Gestion de l'énergie embarquée
-- Tests et validation en environnement clinique
-
-### Méthodologiques
-- Gestion de projet en environnement startup
-- Collaboration avec équipes médicales
-- Résolution de problèmes critiques sous contraintes
-- Documentation technique pour certification médicale
-- Tests en conditions réelles (environnement hospitalier)
-
-## 📁 Documentation Disponible
-
-- ✅ [Architecture technique détaillée](docs/architecture.md)
-- ✅ [Rapport de stage complet (74 pages)](docs/rapport_stage.pdf)
-- ✅ [Présentation de soutenance](docs/presentation.pdf)
-- ✅ [Protocole de validation clinique](docs/validation_clinique.pdf)
-- ✅ [Photos et démonstrations](docs/images/)
-
-## 🏆 Impact & Résultats
-
-- **Validation clinique réussie** sur 50+ patients
-- **Prototype fonctionnel** prêt pour phase d'industrialisation
-- **Contribution significative** au pipeline produit de Medivietech
-- **Base technique solide** pour certification médicale (CE Medical Device)
-- **Expérience utilisateur validée** par personnel médical et patients
-
-## 🔒 Confidentialité
-
-Le code source, les algorithmes propriétaires et les données cliniques sont la propriété de **Medivietech SAS** et ne sont pas publiés dans ce repository. 
-
-Ce portfolio technique présente uniquement :
-- L'architecture générale du système
-- Les défis techniques rencontrés et solutions apportées
-- Les résultats et métriques de validation
-- Les compétences développées
-
-Pour toute question technique sur ce projet, je suis disponible pour échanger en entretien.
+### 4. Clinical Reliability
+**Problem**: Zero data loss tolerance in medical context  
+**Solution**: Redundant storage architecture (SD + Cloud) with integrity checks
 
 ---
 
-## 📫 Contact
+## 📊 Clinical Validation
 
-**Tom Huyghe** - Ingénieur Systèmes Embarqués  
-📧 tom.huyghe@orange.fr  
-💼 [LinkedIn](https://www.linkedin.com/in/tom-huyghe)  
-🌐 [GitHub Portfolio](https://github.com/tomhyg)
+| Metric | Result |
+|--------|--------|
+| **Patients monitored** | 50+ |
+| **Total recording hours** | 400+ |
+| **Data loss rate** | <0.1% |
+| **Uptime reliability** | 99.2% |
+| **Clinical facility** | Clinique Hartmann (Paris) |
 
 ---
 
-*Développé chez Medivietech - Startup MedTech incubée à AGORANOV Paris*  
-*Stage ingénieur de fin d'études - ESME SUDRIA | Avril - Octobre 2025*
+## 🚀 Industrialization Path
+
+Following successful prototype validation, the project transitioned to production with:
+- **Platform migration**: ESP32-S3 → Nordic nRF5340 (extended battery life: 3-5 days)
+- **Manufacturing partner**: EMBRILL (French electronics manufacturer)
+- **Certifications**: Medical device compliance pathway (CE marking)
+
+---
+
+## 📁 Repository Structure
+
+```
+PULSAR/
+├── docs/                   # Technical documentation
+│   ├── architecture.md     # System architecture details
+│   ├── challenges.md       # Engineering challenges solved
+│   └── validation.md       # Clinical validation results
+├── hardware/               # Hardware specifications
+│   └── component-list.md   # Bill of materials
+└── images/                 # Prototype photos & diagrams
+```
+
+> **Note**: Full source code and detailed PCB designs are proprietary to Medivietech.  
+> This repository showcases the architecture, methodology, and technical achievements.
+
+---
+
+## 🛠️ Skills Demonstrated
+
+**Hardware Engineering**
+- Multi-layer PCB design (Altium Designer)
+- Sensor integration (I²C, SPI protocols)
+- Power management & battery optimization
+- FPC connector design for flexible assemblies
+
+**Embedded Software**
+- Real-time firmware development (FreeRTOS)
+- Interrupt-driven sensor data acquisition
+- Communication protocols (WiFi, BLE, MQTT)
+- Cloud integration (AWS IoT Core)
+
+**Systems Engineering**
+- Requirements analysis with medical professionals
+- Clinical validation protocols
+- Design for manufacturability (DFM)
+- Technical documentation & reporting
+
+---
+
+## 📫 About Me
+
+**Tom Huyghe** - Hardware/Software Engineer  
+🎓 ESME SUDRIA - Mechatronics & Embedded Systems (2024)  
+💼 Currently: Freelance Embedded Systems Engineer | Open to opportunities  
+🌐 [GitHub](https://github.com/tomhyg) | [LinkedIn](https://linkedin.com/in/tom-huyghe)
+
+**Interests**: Medical devices, IoT, embedded systems, signal processing
+
+---
+
+## 📄 License
+
+This documentation is shared for **portfolio purposes only**.  
+Hardware designs, firmware, and algorithms are proprietary to **Medivietech SAS**.
+
+---
+
+*Developed at Medivietech, AGORANOV Paris incubator (2024)*
