@@ -1,250 +1,156 @@
-# PULSAR - System Architecture
+# System Architecture
 
-## 📐 Overview
-
-PULSAR is built around a dual-board architecture connecting a main processing unit with a dedicated sensor module via FPC (Flexible Printed Circuit) connector. This design separates computational logic from sensitive analog signal acquisition.
+> High-level design overview of PULSAR medical wearable device
 
 ---
 
-## 🔌 Hardware Architecture
+## Overview
 
-### Block Diagram
+PULSAR is designed as a **modular medical monitoring system** with two primary operational modes:
+- **Cloud-connected mode** (WiFi + AWS upload)
+- **Standalone mode** (SD card local storage)
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    MAIN BOARD (PCB Top)                  │
-│                                                           │
-│  ┌──────────────┐    ┌────────────┐    ┌─────────────┐ │
-│  │   ESP32-S3   │───▶│  SD Card   │    │   Battery   │ │
-│  │  (240 MHz)   │    │  (FAT32)   │    │   (Li-Po)   │ │
-│  └───────┬──────┘    └────────────┘    └──────┬──────┘ │
-│          │                                      │         │
-│          │ I²C/SPI                     ┌────────▼──────┐ │
-│          │                             │  Fuel Gauge   │ │
-│          │                             │   (Battery)   │ │
-│          │                             └───────────────┘ │
-│          │                                                │
-│          │ FPC Connector                                  │
-└──────────┼────────────────────────────────────────────────┘
-           │
-           │ (Flexible Cable)
-           │
-┌──────────▼────────────────────────────────────────────────┐
-│               SENSOR BOARD (PCB Bottom)                    │
-│                                                             │
-│  ┌──────────────┐    ┌─────────────┐    ┌──────────────┐ │
-│  │  MAX86916    │    │   LIS3DH    │    │  Temperature │ │
-│  │  PPG Sensor  │    │ Accelero-   │    │    Sensor    │ │
-│  │  (4 channels)│    │   meter     │    │              │ │
-│  └──────────────┘    └─────────────┘    └──────────────┘ │
-│                                                             │
-│                   (Contact with skin)                       │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Component Breakdown
-
-| Component | Function | Interface | Key Specs |
-|-----------|----------|-----------|-----------|
-| **ESP32-S3** | Main MCU | - | Dual-core 240MHz, 512KB SRAM |
-| **MAX86916** | PPG acquisition | I²C | 4 optical channels, 100Hz sampling |
-| **LIS3DH** | Motion detection | SPI | 3-axis, ±2g to ±16g range |
-| **SD Card** | Local storage | SPI | FAT32, up to 32GB |
-| **Fuel Gauge** | Battery monitoring | I²C | ±1% accuracy |
-| **Li-Po Battery** | Power supply | - | 3.7V, 500mAh capacity |
+This dual-mode architecture ensures data capture reliability in various hospital environments.
 
 ---
 
-## 💾 Data Flow Architecture
+## Hardware Architecture Philosophy
 
-### Dual-Mode Operation
+### Sensor Integration Strategy
 
-PULSAR operates in two simultaneous modes:
+The core design principle revolves around **physiological signal acquisition** using optical sensing technology (PPG - Photoplethysmography).
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                     DATA SOURCES                         │
-│                                                          │
-│   PPG (100Hz)    Accel (50Hz)    Temp (1Hz)            │
-└────────┬─────────────┬───────────────┬──────────────────┘
-         │             │               │
-         ▼             ▼               ▼
-    ┌────────────────────────────────────┐
-    │      ESP32-S3 Data Processing      │
-    │   (Filtering, Buffering, Format)   │
-    └─────────────┬──────────────────────┘
-                  │
-         ┌────────┴────────┐
-         │                 │
-         ▼                 ▼
-    ┌────────┐      ┌──────────┐
-    │  WiFi  │      │ SD Card  │
-    │  MQTT  │      │  Local   │
-    │  AWS   │      │ Storage  │
-    └────────┘      └──────────┘
-    
-    REAL-TIME        BACKUP
-    STREAMING        RECORDING
-```
+![PPG Measurement Principle](../images/architecture/ppg-principle.png)
+*Optical sensing principle for cardiovascular monitoring*
 
-**Mode 1: Real-Time Streaming** (WiFi available)
-- Data transmitted via MQTT to AWS IoT Core
-- Low-latency monitoring on clinical dashboard
-- Automatic reconnection on network loss
+### Key Design Decisions
 
-**Mode 2: Standalone Recording** (WiFi unavailable)
-- Continuous recording to SD card (FAT32)
-- Timestamped files for post-processing
-- Automatic sync when WiFi restored
+1. **Deported Sensor Design**
+   - Circular optical sensor module (Ø10mm)
+   - Connected via flexible FPC ribbon cable
+   - Improves wearability and contact pressure distribution
+
+![Deported Sensor Module](../images/hardware/max86916-sensor.jpg)
+*Compact circular sensor module for wrist contact*
+
+2. **Modular PCB Architecture**
+   - Main processing board
+   - Sensor daughterboard (circular, deported)
+   - Power management subsystem
+   - Storage interface (microSD)
+
+3. **Dual-Core Processing**
+   - Real-time sensor acquisition (dedicated core)
+   - Data processing and communication (application core)
+   - Ensures zero data loss during intensive operations
 
 ---
 
-## 🔄 Firmware Architecture
+## Software Architecture
 
-### Task Structure (FreeRTOS)
+### Data Pipeline
 
 ```
-┌─────────────────────────────────────────┐
-│          FreeRTOS Scheduler             │
-└─────────────────┬───────────────────────┘
-                  │
-        ┌─────────┼─────────┬─────────┐
-        │         │         │         │
-        ▼         ▼         ▼         ▼
-   ┌────────┐ ┌──────┐ ┌──────┐ ┌──────┐
-   │ Sensor │ │ WiFi │ │  SD  │ │ BLE  │
-   │  Task  │ │ Task │ │ Task │ │ Task │
-   └────────┘ └──────┘ └──────┘ └──────┘
-   (Priority: (Pri: 2) (Pri: 1) (Pri: 0)
-      High)
-      
-   • PPG/Accel    • MQTT      • File    • Control
-     reading        publish     write    • Status
-   • Buffering    • Recon.    • Flush   • OTA
+Sensor Acquisition → FIFO Buffering → Memory Management → Storage/Transmission
+     (100Hz)           (Hardware)         (Firmware)         (WiFi/SD)
 ```
 
-**Priority Model**:
-- **High**: Sensor acquisition (cannot miss samples)
-- **Medium**: Network communication (real-time but buffered)
-- **Low**: SD write (asynchronous, buffered)
-- **Idle**: BLE control interface (user interaction)
+### Key Components
+
+- **Acquisition Layer**: Multi-channel sensor reading with interrupt-driven FIFO management
+- **Buffer Management**: Circular RAM buffers for continuous data flow
+- **Storage Layer**: Dual-path architecture (local SD card / cloud upload)
+- **Communication Layer**: WiFi connectivity for real-time data streaming
 
 ---
 
-## 📡 Communication Protocols
+## Signal Processing
 
-### WiFi/MQTT Pipeline
+### Multi-Spectral PPG Analysis
 
-```
-ESP32-S3 ──▶ WiFi ──▶ MQTT ──▶ AWS IoT Core ──▶ Clinical Dashboard
-         (WPA2)    (TLS 1.2)    (Lambda)         (Web interface)
-```
+PULSAR captures cardiovascular signals using multiple wavelengths simultaneously:
+- **Red LED** (660nm): Surface blood flow
+- **Infrared LED** (880nm): Deep tissue perfusion
+- **Green LED** (537nm): Motion artifact reference
+- **Blue LED** (470nm): Experimental oxygenation metrics
 
-**Security**:
-- TLS 1.2 encryption for all transmissions
-- Device-specific certificates (AWS X.509)
-- No hardcoded credentials (secure boot)
+![PPG Waveform Features](../images/architecture/ppg-waveform.png)
+*Typical PPG signal showing cardiac cycle features*
 
-### BLE Control Interface
+### Signal Quality Metrics
 
-```
-Mobile App (Flutter) ──▶ BLE ──▶ ESP32-S3
-                       (GATT)
-                       
-Commands:
-• Start/Stop recording
-• Battery status
-• WiFi configuration
-• Firmware update (OTA)
-```
+- **Sampling rate**: 100 Hz per channel
+- **Resolution**: 19-bit ADC
+- **Dynamic range**: Optimized for low-perfusion scenarios
+- **Motion artifact rejection**: Accelerometer-based filtering
+
+![Spectral Analysis](../images/architecture/ppg-spectral-analysis.png)
+*Frequency domain analysis showing cardiac band (0.5-2 Hz)*
 
 ---
 
-## ⚡ Power Management
+## Power Management
 
-### Power States
+### Energy Budget Strategy
 
-| State | Current Draw | When Active |
-|-------|--------------|-------------|
-| **Active Streaming** | ~120 mA | WiFi ON, sensors sampling |
-| **Recording Only** | ~60 mA | WiFi OFF, SD write only |
-| **BLE Idle** | ~15 mA | Standby, awaiting commands |
-| **Deep Sleep** | <1 mA | User-initiated pause |
-
-### Battery Life Calculation
-
-```
-Battery: 500 mAh @ 3.7V
-Active streaming: 120 mA
-→ Autonomy = 500/120 ≈ 4.2h (theoretical)
-→ Real-world (with power modes): 8-10h
-```
-
-**Optimization Techniques**:
-- Dynamic WiFi sleep (DTIM beacon skipping)
-- Sensor duty cycling (power down between samples)
-- SD card power gating (flush then disable)
-- CPU frequency scaling (80MHz when idle)
+- **Active acquisition**: Optimized for 8-10h continuous operation (R&D prototypes)
+- **Future target**: 3-5 days (production platform migration)
+- **Power monitoring**: Real-time fuel gauge integration
+- **Battery chemistry**: LiPo 3.7V (850mAh prototypes, 550mAh production)
 
 ---
 
-## 🔐 Data Integrity
+## Mechanical Integration
 
-### Redundancy Strategy
+### Wearable Form Factor
 
-1. **Primary Path**: Real-time WiFi/AWS streaming
-2. **Backup Path**: Continuous SD card recording
-3. **Integrity Checks**: CRC-32 on all data packets
+![Device Internal View](../images/prototypes/pulsar-open-housing.jpg)
+*Internal component integration showing compact PCB layout*
 
-**Recovery Scenarios**:
-- WiFi loss → Automatic SD fallback
-- SD full → Alert via BLE, continue streaming
-- Battery low → Safe shutdown with data flush
+### Design Constraints
 
----
+- **Wrist compatibility**: Standard watch form factor
+- **Medical-grade materials**: Biocompatible silicone straps
+- **Water resistance**: Protected electronics (splash-resistant)
+- **Weight**: Optimized for long-term wear comfort
 
-## 📊 Performance Metrics
-
-| Metric | Value |
-|--------|-------|
-| **PPG Sampling Rate** | 100 Hz |
-| **Accelerometer Rate** | 50 Hz |
-| **Data Latency (WiFi)** | <200 ms |
-| **SD Write Speed** | ~1 MB/s |
-| **Boot Time** | <5 seconds |
-| **WiFi Reconnect Time** | <3 seconds |
+![Sensor Contact Detail](../images/prototypes/pulsar-sensor-extrusion.jpg)
+*Deported sensor architecture improving skin contact*
 
 ---
 
-## 🚀 Scalability Considerations
+## Development Platforms
 
-The ESP32-S3 prototype architecture was designed with industrialization in mind:
+### Prototype Phase (ESP32-S3)
+- **Advantages**: Rich ecosystem, fast development cycle
+- **Limitations**: Power consumption higher than target
+- **Use case**: R&D validation, clinical trials
 
-**Migration to Nordic nRF5340** (Next generation):
-- Similar dual-core architecture
-- Lower power consumption (3-5 days autonomy)
-- Enhanced BLE 5.2 features
-- Maintains same sensor interfaces (I²C, SPI)
-
----
-
-## 📝 Design Rationale
-
-**Why dual-board FPC design?**
-- Minimizes noise coupling between digital (MCU) and analog (sensors)
-- Allows sensor board to conform to wrist curvature
-- Simplifies mechanical assembly
-
-**Why dual-mode operation?**
-- Ensures zero data loss in clinical settings
-- Provides flexibility for different hospital IT infrastructures
-- Enables offline operation during WiFi maintenance
-
-**Why ESP32-S3 for prototype?**
-- Rapid development (Arduino/ESP-IDF ecosystem)
-- Built-in WiFi/BLE (no external modules)
-- Cost-effective for small batch manufacturing
+### Production Phase (Nordic nRF5340)
+- **Advantages**: Ultra-low power, BLE 5.3, industrial-grade
+- **Target**: 8x battery life improvement
+- **Use case**: Commercial deployment, regulatory approval
 
 ---
 
-*This architecture successfully validated on 50+ patients with 99.2% uptime reliability.*
+## Design Trade-offs
+
+| Aspect | Decision | Rationale |
+|--------|----------|-----------|
+| **Processing Power** | Dual-core architecture | Real-time acquisition without data loss |
+| **Sensor Position** | Deported circular module | Ergonomics + reliable skin contact |
+| **Storage Strategy** | Dual-mode (WiFi/SD) | Flexibility for different hospital IT policies |
+| **Platform** | ESP32 → Nordic migration | Prototyping speed → Production power efficiency |
+
+---
+
+## Confidentiality Notice
+
+Detailed schematics, firmware source code, and specific component selections remain proprietary to Medivietech. This document provides a high-level architectural overview for portfolio demonstration purposes.
+
+---
+
+**Related Documentation:**
+- [Technical Challenges Solved](challenges.md)
+- [Clinical Validation Results](validation.md)
+- [Hardware Design Guide](../hardware/README.md)
