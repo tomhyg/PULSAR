@@ -13,12 +13,33 @@
 
 **PULSAR** is a medical-grade wearable device designed for continuous physiological monitoring in clinical settings. As the lead hardware/software engineer, I developed the complete prototype from PCB design to clinical validation.
 
+<p align="center">
+  <img src="pulsar-final-renders.jpg" width="80%" alt="PULSAR Final Product Renders" />
+</p>
+
 ### Key Achievements
 - ✅ **15 functional prototypes** manufactured and tested
 - ✅ **50+ patients** monitored in clinical trials (Clinique Hartmann, Paris)
 - ✅ **Dual-mode architecture**: Real-time WiFi/AWS streaming + Standalone SD recording
 - ✅ **8-10 hours** battery autonomy on prototype
 - ✅ **Multi-sensor fusion**: PPG (4 channels), accelerometry, temperature
+
+---
+
+## 🖥️ Prototypes Gallery
+
+<p align="center">
+  <img src="pulsar-dual-watches.jpg" width="70%" alt="PULSAR v3.1 Prototypes" />
+  <br/>
+  <em>PULSAR-009 and PULSAR-007 functional prototypes</em>
+</p>
+
+<p align="center">
+  <img src="pulsar-open-housing.jpg" width="45%" alt="Open Housing" />
+  <img src="pulsar-sensor-extrusion.jpg" width="45%" alt="Sensor Extrusion" />
+  <br/>
+  <em>Left: Internal electronics integration | Right: FPC sensor positioning</em>
+</p>
 
 ---
 
@@ -32,12 +53,6 @@
   - Fuel gauge for precise battery monitoring
 - **PCB**: Dual-board design (main + sensor module) connected via FPC
 - **Mechanical**: Custom watch housing designed in SolidWorks
-
-### Software Stack
-- **Firmware**: C/C++ (ESP-IDF framework)
-- **Connectivity**: WiFi, BLE, AWS IoT Core
-- **Data Pipeline**: Real-time MQTT streaming + local SD storage
-- **Mobile App**: Flutter (patient interface)
 
 ### System Features
 ```
@@ -88,7 +103,7 @@
 
 Following successful prototype validation, the project transitioned to production with:
 - **Platform migration**: ESP32-S3 → Nordic nRF5340 (extended battery life: 3-5 days)
-- **Manufacturing partner**: EMBRILL (French electronics manufacturer)
+- **Manufacturing partner**: EMBRILL (French-Indian collaboration)
 - **Certifications**: Medical device compliance pathway (CE marking)
 
 ---
@@ -97,13 +112,14 @@ Following successful prototype validation, the project transitioned to productio
 
 ```
 PULSAR/
-├── docs/                   # Technical documentation
-│   ├── architecture.md     # System architecture details
-│   ├── challenges.md       # Engineering challenges solved
-│   └── validation.md       # Clinical validation results
+├── README.md                   # This file
+├── docs/                       # Technical documentation
+│   ├── architecture.md         # System architecture details
+│   ├── challenges.md           # Engineering challenges solved
+│   └── validation.md           # Clinical validation results
 ├── hardware/               # Hardware specifications
-│   └── component-list.md   # Bill of materials
-└── images/                 # Prototype photos & diagrams
+│   └── component-list.md       # Bill of materials
+└── images/                     # Prototype photos & diagrams
 ```
 
 > **Note**: Full source code and detailed PCB designs are proprietary to Medivietech.  
