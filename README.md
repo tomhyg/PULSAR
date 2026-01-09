@@ -157,7 +157,7 @@ PULSAR is a **medical-grade wearable device** for continuous physiological monit
 
 **Development Tools:**  
 - **Firmware:** C/C++, Arduino/ESP-IDF, VS Code, Git
-- **PCB Design:** EasyEDA Pro
+- **PCB Design:** Altium , EasyEDA Pro 
 - **Mechanical CAD:** SolidWorks, Fusion 360
 - **Cloud:** AWS S3, AWS Lambda
 - **Analysis:** Python (data extraction, FFT analysis)
@@ -230,14 +230,13 @@ For commercial inquiries: [contact@medivietech.com](mailto:contact@medivietech.c
 
 🎓 **ESME SUDRIA** — Engineering Degree (Mechatronics & Embedded Systems)  
 🏢 **Currently:** Freelance embedded consultant + Open to full-time opportunities  
-💼 **Interests:** MedTech, IoT, Wearables, Signal Processing  
+💼 **Interests:** MedTech, IoT, Hardware, Wearables, Signal Processing  
 
 ### 📬 Contact
 
-📧 **Email:** [tom.huyghe@example.com]  
+📧 **Email:** [tom.huyghe@orange.com]  
 💼 **LinkedIn:** [linkedin.com/in/tom-huyghe]  
-🌐 **Portfolio:** [tomhuyghe.dev]  
-🏢 **SIRET:** 99486587100010 (Micro-entreprise)  
+🌐 **Portfolio:** [tomhuyghe.dev]
 💰 **Freelance Rate:** 350€/day  
 
 ### 💡 Core Expertise
@@ -256,7 +255,7 @@ For commercial inquiries: [contact@medivietech.com](mailto:contact@medivietech.c
 **Incubator:** AGORANOV Paris (Leading French Deep-Tech Incubator)  
 **Role:** Hardware/Software Engineering Intern  
 **Duration:** 6 months (April - October 2024)  
-**Team:** CEO (Neil Benhamou), CTO (Thomas Baret - AI/Data), QARA Engineer  
+**Team:** CEO (Neil Benhamou), CTO (Thomas Baret - AI/Data),
 **International Partnership:** EMBRILL (India) for industrialization
 
 ---
@@ -279,4 +278,4 @@ Special thanks to:
 ---
 
 **Last Updated:** January 2025  
-**Project Status:** ✅ Clinical validation completed | 🔄 Production migration ongoing (Nordic nRF5340)
+**Project Status:** ✅ Clinical validation completed | ✅ Production migration ongoing (Nordic nRF5340)
